@@ -1,1 +1,94 @@
 
+2.1 AWS 컴퓨팅 서비스
+	
+(클라우드) 워크로드 workload >> 주어진 기간 안에 처리되어야할 작업의 할당량
+
+컴퓨팅 Computing >> 계산하다. 답을 구하다. 
+	: computing 자원이라고 하면 보통 "서버" 를 일컫는다.
+
+
+
+AWS 의 제품명에 자주 등장하는 "elastic" >> 탄력적인. 
+	: 그만큼 필요에 따라 확장 및 축소가 유연하다는 것
+
+
+AWS Computing Service >> public cloud 에서 computing 자원을 활용하여 다양한 workload 를 수행할 수 있는 서비스
+	: AWS Computing 주요 서비스
+	******1. EC2 Elastic Compute Cloud : 클라우드 환경에서 가상 서버 제공. 가장 기본적
+			: 클라우드 환경에서 서버 자원을 instance 라는 Virtual Machine 형태로 제공하는  AWS 컴퓨팅 서비스
+			: C 가 2개여서 E"C2" 인듯
+	
+		2. ECS Elastic Container Service : 클라우드 환경에서 컨테이너 관리 서비스
+			: EC2 기반 관리형 클러스터에서 실행되는 컨테이너 형태의 자원에 대해 배포, 스케줄링, 스케일링 등을 관리하는 서비스
+
+		3. Lambda : 서버리스 컴퓨팅 서비스로, 별도의 서버 설정이 없는 환경(코드만 실행 가능한 환경)을 제공. 
+		4. Lightsail : 애플리케이션까지 모든 것을 제공하는 서비스
+
+
+Amazon EC2 Amazon Elastic Compute Cloud : public cloud 환경에서 확장 가능한 컴퓨팅 자원(=서버)을 제공하여 가상의 서버를 운영할 수 있는 서비스. 
+	: instance >> 가상의 컴퓨팅 환경. 가상 서버. 
+		: EC2 서비스의 기본 단위가 된다.
+		: instance 유형 >>  OS, Architecture , memory 등을 기준으로 다양한 instance 유형이 제공되고, 선택 가능
+			: 유형 구조 >> [인스턴스패밀리][인스턴스세대].[인스턴스크기]
+				: 인스턴스패밀리 >> 용도별분류
+				: 인스턴스 세대 >> 높을 수록 최신 세대. 성능 좋음
+				: 인스턴스 크기 >> 클 수록 용량 증가
+
+		: instance 의 동작
+			case 1. 최초 인스턴스 시작 : 무의상태 --> pending  --> running 
+			case 2. 실행중인 인스턴스 중지 : running  --> stopping  --> stopped 
+				: "stopped"상태로 끝나는거지, "temrminated" 상태로 끝나는게 아님 주의
+			case 3. 중지된 인스턴스 재시작 : stopped --> pending --> running
+			case 4. 중지된 인스턴스 종료 : stopped --> shutting-down --> terminated
+			case 5. 실행중인 인스턴스 종료 : running --> shutting-down --> terminated
+
+		: instance 상태 >> 도달 상태와 진행상태
+		     : 도달상태
+			1. 실행중 running
+				:  running 상태로 도달하기 위해선 반드시 pending 상태를 거쳐야되는 듯 (running 상태에서 딴 상태로 가는데에는 pending이 필요하진 않음)
+			2. 중지됨 stopped
+				: 인스턴스 영구 삭제가 아닌 일시적 중지 상태로, 얼마든지 다시 시작 가능.
+			3. 종료됨 terminated 		
+				: 인스턴스 영구 삭제. 재시작이 어렵다.
+				: 참고로 terminated 상태가 되어도 관리 콘솔상에서 바로 삭제되진 않고, 일정시간 정보를 출력하다가 없어진다고 함.
+
+		     : 진행상태
+			0. 재부팅 rebooting
+			1. 대기중 pending
+			2. 중지중 stopping
+			3. 종료중 shutting-down
+
+	: AMI Amazon Machine Image >> 인스턴스를 생성할 필요한 (환경)정보를 제공하는 템플릿
+		: AMI 를 기반으로 인스턴스가 생성된다
+			: 하나의 AMI 로 동일한 구성의 여러 인스턴스를 손쉽게 생성 가능. 
+			: 컨테이너를 생성할 때 사용되는 이미지 역할인 듯?
+		: AMI 는 다른 리전으로 복사도 가능하고, 걍 등록 취소도 가능
+		: 종류
+			1. AWS Marketpalce 에서 제공하는 서드파티용 AMI
+			2. AWS 자체 제공 기본 AMI 
+			3. 사용자 정의 AMI
+				: how to make
+					(1) AWS 자체 제공 기본 AMI로 E2C 인스턴스 생성
+					(2) 요구 따라 해당 인스턴스를 수정
+					(3) 수정된 인스턴스를 기반으로 AMI 를 생성. 이게 사용자 정의 AMI
+
+					
+
+	: Amazon EC2 storage >> EC2 서버 자원에서 발생되는 다양한 데이터를 보관
+		: 이후 챕터에서 Amazon EC2 인스턴스를 넘어 더 자세하게 다룬다.
+		: Amazon EC2 인스턴스용 스토리지 유형
+			1. instance store : 인스턴스에 바로 붙어있는 저장소로, 인스턴스 생성시 기본적으로 함께 생성됨
+				: 일부 인스턴스 유형은 지원하지 않음 주의
+					: 당장 실습에 사용되는 t2.micro 인스턴스만 해도 인스턴스 스토어 지원 안한다
+				: 직접 붙어있다보니 I/O 가 빠르다
+				: 인스턴스의 중지/종료와 함께 데이터가 모두 손실된다 >> 임시적인 저장소로만 활용해야된다. (장기적으로 저장할 목적으론 x)
+				: 가게란 의미에서 store 인게아니라, 저장의 의미에서 store 인거임
+
+			2. Amazon EBS Elastic Block Store : 인스턴스(의 외부)에 네트워킹을 통해 연결 및 제거를 하는 형태로 구성되는 블록 스토리지.
+				: 외장 하드디스크와 비슷한 개념. 
+					: 외장 하드디스크- USB 처럼 컴퓨터 외부에 장착하여 사용 가능한 추가 스토리지 공간
+				: 관리콘솔을 통해 영구 저장, 스냅샷을 생성해 백업이 가능
+
+			3. EFS Elastic File Store : 파일 스토리지. 5장 계속
+			4. S3. Simple Storage Service : 오브젝트 스토리지. 5장 계속.
+
