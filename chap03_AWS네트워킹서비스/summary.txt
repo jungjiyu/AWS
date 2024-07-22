@@ -314,6 +314,28 @@ ARP Address Resolution Protocol
 
 3.3 Amazon VPC 
 
+
+대역폭>> 초당 처리할 수 있는 데이터의 양
+
+라우터와 게이트웨이 >> 라우터 != 게이트웨이
+	: 둘이 많이 헷갈려하는 이유 >> 라우터로 대표적인 공유기만 해도, 그냥 기기가 아닌 라우팅 + NAT + 게이트웨이 ... 기능이 포함된 복합 통신 기기. 보통 같이 딸려 제공 되는 경우가 다수여서 동일시 하는 경우가 있는 듯
+
+	: 라우터 >> "같은 프로토콜"을 사용하는 네트워크 간의 데이터 송수신을 수행하는 "하드웨어적"인 것
+		: 주로 LAN 과 WAN(OSI 3계층)을 연결하는데 사용
+		: 프로토콜이 다르다 >>  로컬 네트워크의 통신 프로토콜과 인터넷의 통신 프로토콜이 다르다
+
+	: 게이트웨이 >> "서로 다른 프로토콜"을 사용하는 두 네트워크 간 데이터를 송수신 가능하게(== 변환) 하는 "소프트웨어"적인 것.
+		: 주로 프로토콜이 다른 네트워크(OSI 4계층)를 연결하는데 사용
+			: 얘가 다른 네트워크와의 통신을 가능하게 해주는 얘임
+			: 네트워크에서 다른 네트워크로 가는 입구라고 보면 됨.
+
+	: 라우터와 게이트웨이 차이 >>
+		: 쉽게 풀어놓은 >> https://blog.naver.com/the-woman/223404957249
+		: 간략한 >> https://puzzle-puzzle.tistory.com/entry/%EB%84%A4%ED%8A%B8%EC%9B%8C%ED%81%AC-%EC%9A%A9%EC%96%B4-%EA%B2%8C%EC%9D%B4%ED%8A%B8%EC%9B%A8%EC%9D%B4-Gateway-%EA%B2%8C%EC%9D%B4%ED%8A%B8%EC%9B%A8%EC%9D%B4%EC%99%80-%EB%9D%BC%EC%9A%B0%ED%84%B0-%EC%B0%A8%EC%9D%B4%EC%A0%90
+
+	: 둘이 많이 헷갈리는 이유 >> https://m.blog.naver.com/kangyh5/223175392071
+
+
 Amazon VPC Virtual Private Cloud  >> 사용자 정의로 구성된 가상의 프라이빗 클라우드 네트워트 
 	: 자신만의 데이터 센터에서 네트워크 환경을 구성하는 것처럼, 클라우드 네트워크를 구성 가능
 	: 리전
@@ -398,41 +420,72 @@ Amazon VPC Virtual Private Cloud  >> 사용자 정의로 구성된 가상의 프
 				2. 생성한 네트워킹 자원을 Amazon VPC 에 연결. attach.
 				3. 특정 Amazon VPC 내의 특정 public subnet 의 해당 라우팅 테이블의 타겟 대상을 attach 한 네트워키킹 자원으로 함 >>  외부 인터넷 구간과 해당 public subnet 이 통신 가능하게 된다
 			: 종류
-				1.internet gateway
-					: VPC 와 인터넷 구간의 논리적 연결. 인터넷으로 나가는 관문
-					: 인터넷 게이트웨이의 경우 퍼블릭 서브넷만 직방으로 사용 가능. (프라이빗 서브넷은 밑의 NAT gateway 를 거쳐야된다)
+				1.internet gateway>> VPC 와 인터넷 구간의 논리적 연결. 인터넷으로 나가는 관문
+					: 퍼블릭 서브넷이 됬건 프라이빗 서브넷이 됬건, 실질적으로 외부 인터넷과 통신 가능하게 하는 것은 인터넷 게이트웨이.
+					: 인터넷 게이트웨이의 경우 퍼블릭 서브넷만 직방으로 사용 가능.
+						: 퍼블릭 서브넷은 그 자체로도 퍼블릭 IP를 가지고 있어서 가능한 것. 
+							: 반면에 프라이빗 서브넷은 그 자체로는 퍼블릭 IP 를 가지고 있지 않아 별도로 NAT 게이트 웨이를 거친 후에야, Internet gateway 를 통해 외부로 나갈 수 있다.
 					; 양방향 (인바운드 , 아웃바운드 모두 허용)
  
-				2. NAT gateway Network Address Translation gateway : 
+				2. NAT gateway Network Address Translation gateway >> NAT 기능(private IP 주소를 public IP 로 변환하는 기능)을 제공하는 게이트웨이.
 					: private subnet 에서 외부 인터넷으로 통신하는 관문.
-						; private subnet 은 외부 인터넷 구간과 단절된. 독립된. 네트워크라곤 하지만, 실제로 완전히 단절된건 아니고,  NAT 게이트웨이트를 통해 프라이빗 IP 주소를 퍼블릭 IP 주소로 변환하여 외부 인터넷 공간과 통신 가능하다.
-					: private IP 주소를 public IP 로 변환하는 기능을 제공
+						: 그렇다고 private subnet 이면 NAT gateway 만 있음 통신 가능하단게 아니라, NAT gateway 를 거친 후에 별도로 Internet Gateway 를 거쳐야됨. 
+						; private subnet 은 외부 인터넷 구간과 단절된. 독립된. 네트워크라곤 하지만, 실제로 완전히 단절된건 아니고,  NAT 게이트웨이트를 통해 프라이빗 IP 주소를 퍼블릭 IP 주소로 변환한후, 인터넷 게이트웨이를 통하여 외부 인터넷 구간과 통신 가능하다.
+					: NAT 게이트웨이는, (실제 인터넷 게이트웨이와 연결된) 퍼블릭 서브넷에 위치함. 
 					; 단방향(아웃바운드만 OK, 인바운드는 NO. )
-						: but 인스턴스로부터 요청된 request 에 대한 response 는 허용함
-					: NAT 게이트웨이는, (실제 인터넷 게이트웨이와 연결된) 퍼블릭 서브넷에 위치
-
+						: 외부 인터넷 구간에서 프라이빗 서브넷의 IP 주소로는 데이터를 송수신 불가 << 그럼 포트포워딩 하면 되지 않나??
 		
-				: https://velog.io/@happyyeon/AWS-VPC-NAT%EC%9D%B8%ED%84%B0%EB%84%B7-%EA%B2%8C%EC%9D%B4%ED%8A%B8%EC%9B%A8%EC%9D%B4
+					: https://velog.io/@happyyeon/AWS-VPC-NAT%EC%9D%B8%ED%84%B0%EB%84%B7-%EA%B2%8C%EC%9D%B4%ED%8A%B8%EC%9B%A8%EC%9D%B4
+
+				3. VPC 피어링 Peering  : 서로 다른 "VPC" 를 , 1 대1로 연결하는 기능. 
+					: 다른 리전, 다른 계정 에 위치한 VPC 와도 연결 가능
+					: 주의 >>
+						1. 1 대 1 연결만 지원. 
+							: 물론 다른 VPC 와 간접적으로 연결되게 할 수 있지만, 직접적으로 여러개 연결시키진 못함.
+						2. VPC 피어링으로 연결할 경우 IP CIDR 블록이 중복되면 연결 불가능하므로, VPC 피어링으로 네트워크 확장 시 IP 주소 대역 반드시 점검할 것.
+
+
+				4. 전송 게이트웨이 transit gateway : 다수의 VPC ,온프레미스, VPN 등을 중앙집중식으로 관리 가능한 네트워크 허브
+					: 수백 개의 VPC와 연결할 수 있어, 대규모 네트워크 인프라에 적합
+					: 작동 방식
+						: VPC 통신>> transit gateway 에 연결만 해주면, 해당 transit gateway 에 연결된 모든 다른 VPC 와 통신이 가능
+						: 온프레미스 통신 >> 
+							1. site-to-site VPN 사용 : IPSec 암호화 프로토콜을 사용해 AWS Cloud 환경과 On-Premise 환경을 연결해주는 서비스
+							    : AWS에는 transit Gateway 가 , On-Premise에는 CGW가 붙어있고 둘 사이에 IPsec 프로토콜을 이용해 상호간 통신이 가능하게만들어 주는 원리 
+								step1. CGW 생성 : 온프레미스 라우터의 공인 IP 주소를 사용하여 생성
+									: CGW Customer Gateway 고객 게이트웨이 >> On-Premise의 라우터 값을 AWS에 제공해주는 서비스. AWS 에서 구성되는 가상의 게이트웨이
+										: 온프래미스 내부적으로 이를 활용하기 위해선 별도의 VPN 을 준비해둬야됨. VPN 협상은 항상 고객 게이트웨이 디바이스(클라이언트 측)에서 연결을 시도해야 한다.
+
+								step2. VPN gateway 생성 : AWS에서 VPN 게이트웨이를 생성
+									: VPN Virtual Private Network 가상 사설망 >>공용 네트워크를 통해 프라이빗 네트워크에 안전하게 접근할 수 있도록 하는 기술
+										: 원격 접근, 지리적 차단 우회, 공용 네트워크 사용 시 보안을 강화하는 등의 목적으로 사용
+
+								step3. 생성한 VPN gateway 를 transit Gateway 에 연결
+
+								step4. 생성한 VPN gateway 와 CGW 간의 VPN 연결 설정
+
+								step5. Transit Gateway의 라우팅 테이블을 업데이트하여 온프레미스 네트워크와 VPC 간의 트래픽을 올바르게 라우팅
 
 
 
-라우터와 게이트웨이 >> 라우터 != 게이트웨이
-	: 둘이 많이 헷갈려하는 이유 >> 라우터로 대표적인 공유기만 해도, 그냥 기기가 아닌 라우팅 + NAT + 게이트웨이 ... 기능이 포함된 복합 통신 기기. 보통 같이 딸려 제공 되는 경우가 다수여서 동일시 하는 경우가 있는 듯
 
-	: 라우터 >> "같은 프로토콜"을 사용하는 네트워크 간의 데이터 송수신을 수행하는 "하드웨어적"인 것
-		: 주로 LAN 과 WAN(OSI 3계층)을 연결하는데 사용
-		: 프로토콜이 다르다 >>  로컬 네트워크의 통신 프로토콜과 인터넷의 통신 프로토콜이 다르다
-
-	: 게이트웨이 >> "서로 다른 프로토콜"을 사용하는 두 네트워크 간 데이터를 송수신 가능하게(== 변환) 하는 "소프트웨어"적인 것.
-		: 주로 프로토콜이 다른 네트워크(OSI 4계층)를 연결하는데 사용
-			: 얘가 다른 네트워크와의 통신을 가능하게 해주는 얘임
-
-	: 라우터와 게이트웨이 차이 >>
-		: 쉽게 풀어놓은 >> https://blog.naver.com/the-woman/223404957249
-		: 간략한 >> https://puzzle-puzzle.tistory.com/entry/%EB%84%A4%ED%8A%B8%EC%9B%8C%ED%81%AC-%EC%9A%A9%EC%96%B4-%EA%B2%8C%EC%9D%B4%ED%8A%B8%EC%9B%A8%EC%9D%B4-Gateway-%EA%B2%8C%EC%9D%B4%ED%8A%B8%EC%9B%A8%EC%9D%B4%EC%99%80-%EB%9D%BC%EC%9A%B0%ED%84%B0-%EC%B0%A8%EC%9D%B4%EC%A0%90
+								: https://velog.io/@rhgkssk1114/Site-to-Site-VPN-%EC%9D%B4%EB%9E%80
 
 
-	: 둘이 많이 헷갈리는 이유 >> https://m.blog.naver.com/kangyh5/223175392071
+							2. AWS Direct Connect 사용
+
+
+Amazon VPC 요금 >> 기본적으로 Amazon VPC 사용 요금은 발생 안함 , but 일부 기능 대해 요금 발생
+	: 그 일부 기능 >> NAT 게이트웨이
+		: 최초 프로비저닝한 후 "시간"에 따른 요금, 기가 바이트 단위로 데이터 처리 요금이 부과됨
+			: 사용 시간이 1시간 미만이더라도, 1시간으로 청구된다
+		: 참고 ) 서울 리전의 NAT 게이트웨이는 1시간 당 100원 미만의 요금 발생 가능
+
+
+
+---------------------------------------------------------------------------------------
+
+
 
 
 
