@@ -331,6 +331,7 @@ Amazon S3 Simple Storage Service :  데이터를 버킷 내 객체로 저장하�
 	: S3 보안 >> 
 		sol1. IAM 을 활용 <-- 뒷 챕터서 나오는 내용
 			; IAM Identity and Access Management >> AWS 의 자격증명서비스
+				: 주의 ) 인스턴스 생성할 때 설정하는 AMI Amazon Machine Image 용어랑 헷갈려하지 x
 			: IAM 으로 접속 사용자, 데이터 접근을 관리 가능
 		
 		sol2. Amazon S3 버킷 정책 활용
