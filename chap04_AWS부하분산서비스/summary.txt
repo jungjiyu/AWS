@@ -1822,11 +1822,11 @@ CloudFormation >> AWS 가 제공하는 IaC 서비스
 		: 클라이언트 - 서버의 통신에서 클라이언트는 트래픽의 IP 헤더에 "출발지 IP주소"와 "목적지 IP 주소"를 기입
 			:  클라이언트 IP 헤더의 "출발지 IP주소"
 				: ALB >> 보존하지 않음. 클라이언트의 트래픽을 ALB가 로드밸런싱해서 서버에 전달할 때 클라이언트의 출발지 IP 주소를 자신의 프라이빗 IP 주소로 변경해 전달.
-					: 목적지 IP 주소도 바뀌는 듯? 
 				; NLB >> 보존함. 클라이언트의 IP 그대로 출발지 IP 주소. 
 
-			: 출발지 IP주소 >> 클라이언트의 IP?
-			: 목적지 IP주소 >> 서버의 IP ? 
+			:  클라이언트 IP 헤더의 "목적지 IP주소"
+				: ALB건 NLB건 처음엔 로드밸런서의 public IP이고, 로드밸런서를 거치면 실제 서버의 private IP로 바뀌게 된다. 
+
 
 		: 절차
 			1. SERVER-1 에 SSH 접속하여 확인해보기 
@@ -1851,13 +1851,15 @@ CloudFormation >> AWS 가 제공하는 IaC 서비스
 					: -v >> 패턴과 일치하지 않는 항목만 출력
 					: "ELB-HealthChecker/2.0" >>  Amazon ELB 에서 서버 상태를 확인하기 위해 보내는 요청 header 의 User-Agent 문자열. 
 					: 뭐 꼭 해주지 않아도 되긴 하는데 이렇게 안하면 아래와 같이 계속 찍혀 실제 클라이언트의 요청을 알아보기 어렵다
- 						tail -f /var/log/httpd/access_log
-
-						10.40.2.227 - - [03/Aug/2024:05:04:16 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
-						10.40.1.99 - - [03/Aug/2024:05:04:18 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
-						10.40.2.48 - - [03/Aug/2024:05:04:26 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
-						10.40.1.73 - - [03/Aug/2024:05:04:26 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
-
+						:  ELB-HealthChecker/2.0 요청만 확인해보면 아래와 같은데, 실제 AWS측 클라이언트의 IP가 찍히는게 아니라 내부 NLB, ALB 노드에 연결된 ENI의 private IP 가 번갈아가며 찍히는걸 볼 수 있다. 
+ 						 10.40.1.99 - - [03/Aug/2024:12:23:58 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
+ 						 10.40.2.227 - - [03/Aug/2024:12:24:06 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
+ 						 10.40.1.99 - - [03/Aug/2024:12:24:08 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
+ 						 10.40.2.48 - - [03/Aug/2024:12:24:16 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
+ 						 10.40.1.73 - - [03/Aug/2024:12:24:16 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
+ 						 10.40.2.227 - - [03/Aug/2024:12:24:16 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
+ 						 10.40.1.99 - - [03/Aug/2024:12:24:18 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
+ 						 10.40.2.48 - - [03/Aug/2024:12:24:20 +0000] "GET / HTTP/1.1" 200 30 "-" "ELB-HealthChecker/2.0"
 
 
 		
@@ -1867,10 +1869,175 @@ CloudFormation >> AWS 가 제공하는 IaC 서비스
 						: 주로 네트워크 트래픽을 모니터링하는데 사용됨
 					: tcp port 80 >> TCP 포트 80 번을 캡쳐하도록 지정
 					: -nn >> 
-						-n >> IP 주소를 호스트 이름으로 변환하지 않도록 지시합니다. 즉, IP 주소를 그대로 출력
+						-n >> IP 주소를 호스트 이름으로 변환하지 않도록 지시. 즉, IP 주소를 그대로 출력
 						-nn (n을 두번 사용)>>포트 번호도 서비스 이름으로 변환하지 않고 그대로 출력. ( ex: 80번 포트라고 http로 변환해 표기하지 않음)
 
 
+			2.  MyEC2 에 SSH 접속하여 확인해보기 
+
+				(0) MyEC2 서버에 SSH 접속
+				(1) MyEC2 서버의 IP 주소 >> curl ipinfo.io/ip
+					: 실습에선 3.36.113.66 나옴
+						: MyEC2 서비스 탭의 세부정보에서 확인해보면 이는 public IP 주소에 해당
+				(2) ALB의 도메인네임으로, SERVER-1 으로 요청보내고 SERVER-1쪽에서 로그 찍히는거 확인해보기>>  curl $ALB
+					: 클라이언트의 실제 IP(3.36.113.66)가 보존되지 않음. 확인해보면 아래와 같이 ALB 노드의 private IP가 찍히는 것을 확인 가능. 여기서 또 확인 가능한 특이한 점은 꼭 실제로 해당 서버로 트래픽을 전달해주는 ALB노드의 IP(10.40.1.73)만 찍히는 것이 아니라, 다른 가용영역에 속한 ALB 노드의 IP(10.40.2.48)가 찍히는 경우도 있는 것을 확인 가능한데, 이건 자연스러운 상황임. << 트래픽의 수락을 가용영역A에서 할 수 있지만, 실제 처리는 가용영역B에서 이루어질 수 있고 이 경우 다른 가용영역의 ALB 노드의 IP가 출발지 IP로 찍힐 수 있다
+ 					tail -f /var/log/httpd/access_log | grep -v "ELB-HealthChecker/2.0"
+					10.40.2.48 - - [03/Aug/2024:13:16:39 +0000] "GET / HTTP/1.1" 200 30 "-" "curl/8.3.0"
+					10.40.1.73 - - [03/Aug/2024:13:16:44 +0000] "GET / HTTP/1.1" 200 30 "-" "curl/8.3.0"
+					10.40.2.48 - - [03/Aug/2024:13:16:56 +0000] "GET / HTTP/1.1" 200 30 "-" "curl/8.3.0"
+					10.40.1.73 - - [03/Aug/2024:13:16:58 +0000] "GET / HTTP/1.1" 200 30 "-" "curl/8.3.0"
+					10.40.2.48 - - [03/Aug/2024:13:17:08 +0000] "GET / HTTP/1.1" 200 30 "-" "curl/8.3.0"
+					10.40.1.73 - - [03/Aug/2024:13:17:11 +0000] "GET / HTTP/1.1" 200 30 "-" "curl/8.3.0"
+					10.40.2.48 - - [03/Aug/2024:13:17:12 +0000] "GET / HTTP/1.1" 200 30 "-" "curl/8.3.0"
+
+
+
+			3.  ALB 환경에서 클라이언트의 IP를 확인해보기 >> HTTP 헤더의 X-Forwarded-For (XFF) 필드를 이용 
+				(1) SERVER-1 에 SSH 접속 
+				(2) 기본 로그 설정 정보 확인 >>  grep -n LogFormat /etc/httpd/conf/httpd.conf
+				    : /etc/httpd/conf/httpd.conf >>  Apache 의 기본 로그 설정 정보
+				    : 확인해보면 아래와 같음
+					grep -n LogFormat /etc/httpd/conf/httpd.conf
+					196:    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+					197:    LogFormat "%h %l %u %t \"%r\" %>s %b" common
+					201:      LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %I %O" combinedio
+
+
+				(3) vi 편집기에서 httpd.conf 편집(XFF필드 내용 추가)
+					1. vi /etc/httpd/conf/httpd.conf
+					2. 
+
+				(4) 확인 >> 수정한대로 로그가 잘 나옴			
+ tail -f /var/log/httpd/access_log | grep -v "ELB-HealthChecker/2.0"
+3.36.113.66 10.40.2.48 - - [04/Aug/2024:02:56:30 +0000] "GET /dev/ HTTP/1.1" 200 30 "-" "curl/8.3.0"
+
+
+
+SERVER-1에서
+
+root@SERVER1 ~]# tcpdump tcp port 80 -nn
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+02:59:55.785020 IP 10.40.2.48.41082 > 10.40.1.10.80: Flags [S], seq 1771516496,                                                                                                  win 26883, options [mss 8961,sackOK,TS val 3825288464 ecr 0,nop,wscale 8], lengt                                                                                                 h 0
+02:59:55.785052 IP 10.40.1.10.80 > 10.40.2.48.41082: Flags [S.], seq 1069463866,                                                                                                  ack 1771516497, win 26847, options [mss 8961,sackOK,TS val 16217073 ecr 3825288                                                                                                 464,nop,wscale 7], length 0
+02:59:55.786134 IP 10.40.2.48.41082 > 10.40.1.10.80: Flags [.], ack 1, win 106,                                                                                                  options [nop,nop,TS val 3825288466 ecr 16217073], length 0
+02:59:55.786142 IP 10.40.2.48.41082 > 10.40.1.10.80: Flags [P.], seq 1:126, ack                                                                                                  1, win 106, options [nop,nop,TS val 3825288466 ecr 16217073], length 125: HTTP:                                                                                                  GET / HTTP/1.1
+02:59:55.786159 IP 10.40.1.10.80 > 10.40.2.48.41082: Flags [.], ack 126, win 210                                                                                                 , options [nop,nop,TS val 16217074 ecr 3825288466], length 0
+02:59:55.786408 IP 10.40.1.10.80 > 10.40.2.48.41082: Flags [P.], seq 1:323, ack                                                                                                  126, win 210, options [nop,nop,TS val 16217074 ecr 3825288466], length 322: HTTP                                                                                                 : HTTP/1.1 200 OK
+02:59:55.786497 IP 10.40.1.10.80 > 10.40.2.48.41082: Flags [F.], seq 323, ack 12                                                                                                 6, win 210, options [nop,nop,TS val 16217075 ecr 3825288466], length 0
+02:59:55.787370 IP 10.40.2.48.41082 > 10.40.1.10.80: Flags [.], ack 323, win 110                                                                                                 , options [nop,nop,TS val 3825288467 ecr 16217074], length 0
+02:59:55.787436 IP 10.40.2.48.41082 > 10.40.1.10.80: Flags [F.], seq 126, ack 32                                                                                                 3, win 110, options [nop,nop,TS val 3825288467 ecr 16217074], length 0
+02:59:55.787441 IP 10.40.1.10.80 > 10.40.2.48.41082: Flags [.], ack 127, win 210                                                                                                 , options [nop,nop,TS val 16217076 ecr 3825288467], length 0
+02:59:55.787491 IP 10.40.2.48.41082 > 10.40.1.10.80: Flags [.], ack 324, win 110                                                                                                 , options [nop,nop,TS val 3825288467 ecr 16217075], length 0
+02:59:55.964691 IP 10.40.1.73.55050 > 10.40.1.10.80: Flags [S], seq 1976927934,                                                                                                  win 26883, options [mss 8961,sackOK,TS val 2957368436 ecr 0,nop,wscale 8], lengt                                                                                                 h 0
+02:59:55.964720 IP 10.40.1.10.80 > 10.40.1.73.55050: Flags [S.], seq 387608180,                                                                                                  ack 1976927935, win 26847, options [mss 8961,sackOK,TS val 2550841226 ecr 295736                                                                                                 8436,nop,wscale 7], length 0
+02:59:55.964960 IP 10.40.1.73.55050 > 10.40.1.10.80: Flags [.], ack 1, win 106,                                                                                                  options [nop,nop,TS val 2957368437 ecr 2550841226], length 0
+02:59:55.964970 IP 10.40.1.73.55050 > 10.40.1.10.80: Flags [P.], seq 1:126, ack                                                                                                  1, win 106, options [nop,nop,TS val 2957368437 ecr 2550841226], length 125: HTTP                                                                                                 : GET / HTTP/1.1
+02:59:55.964985 IP 10.40.1.10.80 > 10.40.1.73.55050: Flags [.], ack 126, win 210                                                                                                 , options [nop,nop,TS val 2550841226 ecr 2957368437], length 0
+02:59:55.965272 IP 10.40.1.10.80 > 10.40.1.73.55050: Flags [P.], seq 1:323, ack                                                                                                  126, win 210, options [nop,nop,TS val 2550841226 ecr 2957368437], length 322: HT                                                                                                 TP: HTTP/1.1 200 OK
+02:59:55.965359 IP 10.40.1.10.80 > 10.40.1.73.55050: Flags [F.], seq 323, ack 12                                                                                                 6, win 210, options [nop,nop,TS val 2550841226 ecr 2957368437], length 0
+02:59:55.965448 IP 10.40.1.73.55050 > 10.40.1.10.80: Flags [.], ack 323, win 110                                                                                                 , options [nop,nop,TS val 2957368437 ecr 2550841226], length 0
+02:59:55.965859 IP 10.40.1.73.55050 > 10.40.1.10.80: Flags [F.], seq 126, ack 32                                                                                                 4, win 110, options [nop,nop,TS val 2957368437 ecr 2550841226], length 0
+02:59:55.965866 IP 10.40.1.10.80 > 10.40.1.73.55050: Flags [.], ack 127, win 210                                                                                                 , options [nop,nop,TS val 2550841227 ecr 2957368437], length 0
+02:59:56.761968 IP 10.40.2.227.14792 > 10.40.1.10.80: Flags [S], seq 3179267240,                                                                                                  win 8961, options [mss 8361,sackOK,TS val 656028188 ecr 0,nop,wscale 0], length                                                                                                  0
+02:59:56.762005 IP 10.40.1.10.80 > 10.40.2.227.14792: Flags [S.], seq 437095099,                                                                                                  ack 3179267241, win 26847, options [mss 8961,sackOK,TS val 3932116526 ecr 65602                                                                                                 8188,nop,wscale 7], length 0
+02:59:56.763320 IP 10.40.2.227.14792 > 10.40.1.10.80: Flags [.], ack 1, win 8961                                                                                                 , options [nop,nop,TS val 656028189 ecr 3932116526], length 0
+02:59:56.763333 IP 10.40.2.227.14792 > 10.40.1.10.80: Flags [P.], seq 1:129, ack                                                                                                  1, win 8961, options [nop,nop,TS val 656028189 ecr 3932116526], length 128: HTT                                                                                                 P: GET / HTTP/1.1
+02:59:56.763357 IP 10.40.1.10.80 > 10.40.2.227.14792: Flags [.], ack 129, win 21                                                                                                 9, options [nop,nop,TS val 3932116527 ecr 656028189], length 0
+02:59:56.763702 IP 10.40.1.10.80 > 10.40.2.227.14792: Flags [P.], seq 1:323, ack                                                                                                  129, win 219, options [nop,nop,TS val 3932116528 ecr 656028189], length 322: HT                                                                                                 TP: HTTP/1.1 200 OK
+02:59:56.763783 IP 10.40.1.10.80 > 10.40.2.227.14792: Flags [F.], seq 323, ack 1                                                                                                 29, win 219, options [nop,nop,TS val 3932116528 ecr 656028189], length 0
+02:59:56.764827 IP 10.40.2.227.14792 > 10.40.1.10.80: Flags [.], ack 323, win 86                                                                                                 39, options [nop,nop,TS val 656028191 ecr 3932116528], length 0
+02:59:56.764911 IP 10.40.2.227.14792 > 10.40.1.10.80: Flags [F.], seq 129, ack 3                                                                                                 24, win 8639, options [nop,nop,TS val 656028191 ecr 3932116528], length 0
+02:59:56.764918 IP 10.40.1.10.80 > 10.40.2.227.14792: Flags [.], ack 130, win 21                                                                                                 9, options [nop,nop,TS val 3932116529 ecr 656028191], length 0
+02:59:58.761470 IP 10.40.1.99.15590 > 10.40.1.10.80: Flags [S], seq 51518185, wi                                                                                                 n 8961, options [mss 8361,sackOK,TS val 1206573784 ecr 0,nop,wscale 0], length 0
+02:59:58.761501 IP 10.40.1.10.80 > 10.40.1.99.15590: Flags [S.], seq 2583739487,                                                                                                  ack 51518186, win 26847, options [mss 8961,sackOK,TS val 2049195670 ecr 1206573                                                                                                 784,nop,wscale 7], length 0
+02:59:58.762398 IP 10.40.1.99.15590 > 10.40.1.10.80: Flags [.], ack 1, win 8961,                                                                                                  options [nop,nop,TS val 1206573786 ecr 2049195670], length 0
+02:59:58.762405 IP 10.40.1.99.15590 > 10.40.1.10.80: Flags [P.], seq 1:128, ack                                                                                                  1, win 8961, options [nop,nop,TS val 1206573786 ecr 2049195670], length 127: HTT                                                                                                 P: GET / HTTP/1.1
+02:59:58.762421 IP 10.40.1.10.80 > 10.40.1.99.15590: Flags [.], ack 128, win 210                                                                                                 , options [nop,nop,TS val 2049195671 ecr 1206573786], length 0
+02:59:58.762706 IP 10.40.1.10.80 > 10.40.1.99.15590: Flags [P.], seq 1:323, ack                                                                                                  128, win 210, options [nop,nop,TS val 2049195671 ecr 1206573786], length 322: HT                                                                                                 TP: HTTP/1.1 200 OK
+02:59:58.762777 IP 10.40.1.10.80 > 10.40.1.99.15590: Flags [F.], seq 323, ack 12                                                                                                 8, win 210, options [nop,nop,TS val 2049195671 ecr 1206573786], length 0
+02:59:58.763151 IP 10.40.1.99.15590 > 10.40.1.10.80: Flags [.], ack 323, win 863                                                                                                 9, options [nop,nop,TS val 1206573787 ecr 2049195671], length 0
+02:59:58.763388 IP 10.40.1.99.15590 > 10.40.1.10.80: Flags [F.], seq 128, ack 32                                                                                                 4, win 8639, options [nop,nop,TS val 1206573787 ecr 2049195671], length 0
+02:59:58.763395 IP 10.40.1.10.80 > 10.40.1.99.15590: Flags [.], ack 129, win 210                                                                                                 , options [nop,nop,TS val 2049195671 ecr 1206573787], length 0
+02:59:59.946611 IP 10.40.2.48.41086 > 10.40.1.10.80: Flags [S], seq 4098099798, win 26883, options [mss 8961,sackOK,TS val 3825292626 ecr 0,nop,wscale 8], length 0
+02:59:59.946642 IP 10.40.1.10.80 > 10.40.2.48.41086: Flags [S.], seq 3861132048, ack 4098099799, win 26847, options [mss 8961,sackOK,TS val 16221235 ecr 3825292626,nop,wscale 7], length 0
+02:59:59.947638 IP 10.40.2.48.41086 > 10.40.1.10.80: Flags [.], ack 1, win 106, options [nop,nop,TS val 3825292627 ecr 16221235], length 0
+02:59:59.947645 IP 10.40.2.48.41086 > 10.40.1.10.80: Flags [P.], seq 1:126, ack 1, win 106, options [nop,nop,TS val 3825292627 ecr 16221235], length 125: HTTP: GET / HTTP/1.1
+02:59:59.947661 IP 10.40.1.10.80 > 10.40.2.48.41086: Flags [.], ack 126, win 210, options [nop,nop,TS val 16221236 ecr 3825292627], length 0
+02:59:59.947918 IP 10.40.1.10.80 > 10.40.2.48.41086: Flags [P.], seq 1:323, ack 126, win 210, options [nop,nop,TS val 16221236 ecr 3825292627], length 322: HTTP: HTTP/1.1 200 OK
+02:59:59.947992 IP 10.40.1.10.80 > 10.40.2.48.41086: Flags [F.], seq 323, ack 126, win 210, options [nop,nop,TS val 16221236 ecr 3825292627], length 0
+02:59:59.948913 IP 10.40.2.48.41086 > 10.40.1.10.80: Flags [.], ack 323, win 110, options [nop,nop,TS val 3825292628 ecr 16221236], length 0
+02:59:59.948973 IP 10.40.2.48.41086 > 10.40.1.10.80: Flags [F.], seq 126, ack 324, win 110, options [nop,nop,TS val 3825292628 ecr 16221236], length 0
+02:59:59.948981 IP 10.40.1.10.80 > 10.40.2.48.41086: Flags [.], ack 127, win 210, options [nop,nop,TS val 16221237 ecr 3825292628], length 0
+03:00:02.705586 IP 10.40.1.73.19950 > 10.40.1.10.80: Flags [S], seq 3633239028, win 26883, options [mss 8961,sackOK,TS val 2957375177 ecr 0,nop,wscale 8], length 0
+03:00:02.705636 IP 10.40.1.10.80 > 10.40.1.73.19950: Flags [S.], seq 1943831837, ack 3633239029, win 26847, options [mss 8961,sackOK,TS val 2550847967 ecr 2957375177,nop,wscale 7], length 0
+03:00:02.706760 IP 10.40.1.73.19950 > 10.40.1.10.80: Flags [.], ack 1, win 106, options [nop,nop,TS val 2957375178 ecr 2550847967], length 0
+03:00:02.706769 IP 10.40.1.73.19950 > 10.40.1.10.80: Flags [P.], seq 1:126, ack 1, win 106, options [nop,nop,TS val 2957375178 ecr 2550847967], length 125: HTTP: GET / HTTP/1.1
+03:00:02.706786 IP 10.40.1.10.80 > 10.40.1.73.19950: Flags [.], ack 126, win 210, options [nop,nop,TS val 2550847968 ecr 2957375178], length 0
+03:00:02.707060 IP 10.40.1.10.80 > 10.40.1.73.19950: Flags [P.], seq 1:323, ack 126, win 210, options [nop,nop,TS val 2550847968 ecr 2957375178], length 322: HTTP: HTTP/1.1 200 OK
+03:00:02.707137 IP 10.40.1.10.80 > 10.40.1.73.19950: Flags [F.], seq 323, ack 126, win 210, options [nop,nop,TS val 2550847968 ecr 2957375178], length 0
+03:00:02.707378 IP 10.40.1.73.19950 > 10.40.1.10.80: Flags [.], ack 323, win 110, options [nop,nop,TS val 2957375179 ecr 2550847968], length 0
+03:00:02.708337 IP 10.40.1.73.19950 > 10.40.1.10.80: Flags [F.], seq 126, ack 324, win 110, options [nop,nop,TS val 2957375179 ecr 2550847968], length 0
+03:00:02.708348 IP 10.40.1.10.80 > 10.40.1.73.19950: Flags [.], ack 127, win 210, options [nop,nop,TS val 2550847969 ecr 2957375179], length 0
+03:00:06.761290 IP 10.40.2.227.48903 > 10.40.1.10.80: Flags [S], seq 2286886443, win 8961, options [mss 8361,sackOK,TS val 4253303431 ecr 0,nop,wscale 0], length 0
+03:00:06.761322 IP 10.40.1.10.80 > 10.40.2.227.48903: Flags [S.], seq 3786924462, ack 2286886444, win 26847, options [mss 8961,sackOK,TS val 3932126525 ecr 4253303431,nop,wscale 7], length 0
+03:00:06.762712 IP 10.40.2.227.48903 > 10.40.1.10.80: Flags [.], ack 1, win 8961, options [nop,nop,TS val 4253303432 ecr 3932126525], length 0
+03:00:06.762719 IP 10.40.2.227.48903 > 10.40.1.10.80: Flags [P.], seq 1:129, ack 1, win 8961, options [nop,nop,TS val 4253303432 ecr 3932126525], length 128: HTTP: GET / HTTP/1.1
+03:00:06.762736 IP 10.40.1.10.80 > 10.40.2.227.48903: Flags [.], ack 129, win 219, options [nop,nop,TS val 3932126527 ecr 4253303432], length 0
+03:00:06.762988 IP 10.40.1.10.80 > 10.40.2.227.48903: Flags [P.], seq 1:323, ack 129, win 219, options [nop,nop,TS val 3932126527 ecr 4253303432], length 322: HTTP: HTTP/1.1 200 OK
+03:00:06.763065 IP 10.40.1.10.80 > 10.40.2.227.48903: Flags [F.], seq 323, ack 129, win 219, options [nop,nop,TS val 3932126527 ecr 4253303432], length 0
+03:00:06.764061 IP 10.40.2.227.48903 > 10.40.1.10.80: Flags [.], ack 323, win 8639, options [nop,nop,TS val 4253303434 ecr 3932126527], length 0
+03:00:06.764165 IP 10.40.2.227.48903 > 10.40.1.10.80: Flags [F.], seq 129, ack 324, win 8639, options [nop,nop,TS val 4253303434 ecr 3932126527], length 0
+03:00:06.764172 IP 10.40.1.10.80 > 10.40.2.227.48903: Flags [.], ack 130, win 219, options [nop,nop,TS val 3932126528 ecr 4253303434], length 0
+03:00:08.761391 IP 10.40.1.99.33874 > 10.40.1.10.80: Flags [S], seq 3452390204, win 8961, options [mss 8361,sackOK,TS val 1873781829 ecr 0,nop,wscale 0], length 0
+03:00:08.761426 IP 10.40.1.10.80 > 10.40.1.99.33874: Flags [S.], seq 3996827880, ack 3452390205, win 26847, options [mss 8961,sackOK,TS val 2049205670 ecr 1873781829,nop,wscale 7], length 0
+03:00:08.762061 IP 10.40.1.99.33874 > 10.40.1.10.80: Flags [.], ack 1, win 8961, options [nop,nop,TS val 1873781830 ecr 2049205670], length 0
+03:00:08.762069 IP 10.40.1.99.33874 > 10.40.1.10.80: Flags [P.], seq 1:128, ack 1, win 8961, options [nop,nop,TS val 1873781830 ecr 2049205670], length 127: HTTP: GET / HTTP/1.1
+03:00:08.762085 IP 10.40.1.10.80 > 10.40.1.99.33874: Flags [.], ack 128, win 210, options [nop,nop,TS val 2049205670 ecr 1873781830], length 0
+03:00:08.762339 IP 10.40.1.10.80 > 10.40.1.99.33874: Flags [P.], seq 1:323, ack 128, win 210, options [nop,nop,TS val 2049205670 ecr 1873781830], length 322: HTTP: HTTP/1.1 200 OK
+03:00:08.762420 IP 10.40.1.10.80 > 10.40.1.99.33874: Flags [F.], seq 323, ack 128, win 210, options [nop,nop,TS val 2049205671 ecr 1873781830], length 0
+03:00:08.762802 IP 10.40.1.99.33874 > 10.40.1.10.80: Flags [.], ack 323, win 8639, options [nop,nop,TS val 1873781831 ecr 2049205670], length 0
+03:00:08.762894 IP 10.40.1.99.33874 > 10.40.1.10.80: Flags [F.], seq 128, ack 324, win 8639, options [nop,nop,TS val 1873781831 ecr 2049205671], length 0
+03:00:08.762902 IP 10.40.1.10.80 > 10.40.1.99.33874: Flags [.], ack 129, win 210, options [nop,nop,TS val 2049205671 ecr 1873781831], length 0
+03:00:16.761384 IP 10.40.2.227.63815 > 10.40.1.10.80: Flags [S], seq 2734845638, win 8961, options [mss 8361,sackOK,TS val 1540891767 ecr 0,nop,wscale 0], length 0
+03:00:16.761414 IP 10.40.1.10.80 > 10.40.2.227.63815: Flags [S.], seq 3930345480, ack 2734845639, win 26847, options [mss 8961,sackOK,TS val 3932136526 ecr 1540891767,nop,wscale 7], length 0
+03:00:16.762652 IP 10.40.2.227.63815 > 10.40.1.10.80: Flags [.], ack 1, win 8961, options [nop,nop,TS val 1540891769 ecr 3932136526], length 0
+03:00:16.762660 IP 10.40.2.227.63815 > 10.40.1.10.80: Flags [P.], seq 1:129, ack 1, win 8961, options [nop,nop,TS val 1540891769 ecr 3932136526], length 128: HTTP: GET / HTTP/1.1
+03:00:16.762676 IP 10.40.1.10.80 > 10.40.2.227.63815: Flags [.], ack 129, win 219, options [nop,nop,TS val 3932136527 ecr 1540891769], length 0
+03:00:16.762925 IP 10.40.1.10.80 > 10.40.2.227.63815: Flags [P.], seq 1:323, ack 129, win 219, options [nop,nop,TS val 3932136527 ecr 1540891769], length 322: HTTP: HTTP/1.1 200 OK
+03:00:16.763012 IP 10.40.1.10.80 > 10.40.2.227.63815: Flags [F.], seq 323, ack 129, win 219, options [nop,nop,TS val 3932136527 ecr 1540891769], length 0
+03:00:16.763984 IP 10.40.2.227.63815 > 10.40.1.10.80: Flags [.], ack 323, win 8639, options [nop,nop,TS val 1540891770 ecr 3932136527], length 0
+03:00:16.764106 IP 10.40.2.227.63815 > 10.40.1.10.80: Flags [F.], seq 129, ack 324, win 8639, options [nop,nop,TS val 1540891771 ecr 3932136527], length 0
+03:00:16.764115 IP 10.40.1.10.80 > 10.40.2.227.63815: Flags [.], ack 130, win 219, options [nop,nop,TS val 3932136528 ecr 1540891771], length 0
+^C
+91 packets captured
+91 packets received by filter
+0 packets dropped by kernel
+
+
+
+
+
+
+
+
+[root@SERVER1 ~]# tcpdump udp port 161 -nn
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+03:04:38.360071 IP 3.36.113.66.50780 > 10.40.1.10.161:  GetRequest(28)  .1.3.6.1.2.1.1.5.0
+03:04:38.360446 IP 10.40.1.10.161 > 3.36.113.66.50780:  GetResponse(35)  .1.3.6.1.2.1.1.5.0="SERVER1"
+^C
+2 packets captured
+2 packets received by filter
+0 packets dropped by kernel
+
+
+
+
+ 
+
+
+					
 	8. 실습에서 생성한 자원 모두 삭제
 
 
