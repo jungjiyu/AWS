@@ -1,3 +1,4 @@
+
 5.1 스토리지 개요
 
 스토리지 storage 
@@ -349,13 +350,193 @@ Amazon S3 Simple Storage Service :  데이터를 버킷 내 객체로 저장하�
 
 5.5 다양한 AWS 스토리지 구성하기 
 
+자주 까먹는거 정리
+	1. 서브넷과 라우팅 테이블을 attach (연결)하는 것 == 서브넷이 해당 라우팅 테이블의 규칙을 따르게 만드는 것 != 해당 서브넷으로도 라우팅 테이블이 라우팅할 수 있게 하는 것
+
+	2. public , private subnet >> IGW 와 직접적으로 연결되있나 여부
+		: public subnet >> IGW 와 직접적으로 연결된 서브넷
+		: private subnet >> IGW 와 직접적으로 연결 안된 서브넷
+
+
+	3. YAML 파일의 객체 표현
+		"-" >> 요소 하나의 시작
+		줄바꿈 >> 나열
+
+		ex )
+
+		SecurityGroupIngress:
+  		- IpProtocol: tcp
+  		  FromPort: '80'
+  		  ToPort: '80'
+ 		  CidrIp: 0.0.0.0/0
+  		- IpProtocol: tcp
+  		  FromPort: '2049'
+  		  ToPort: '2049'
+ 		  CidrIp: 10.40.0.0/16
+
+
+		을 객체로 표현하면
+
+
+ 		"SecurityGroupIngress": [
+  		  {
+   		   "IpProtocol": "tcp",
+    		  "FromPort": 80,
+   		   "ToPort": 80,
+    		  "CidrIp": "0.0.0.0/0"
+   		 },
+   		 {
+   		   "IpProtocol": "tcp",
+     		 "FromPort": 2049,
+    		  "ToPort": 2049,
+    		  "CidrIp": "10.40.0.0/16"
+   		 }  ]
+
+
+		이다
+
+
 실습 단계
-	1. 실습에 필요한 기본 인프라 배포 >>AWS CloudFormation 을 사용하여 자동으로 배포
-		; 
+	1. 실습에 필요한 기본 인프라 배포 
+		: AWS CloudFormation 을 사용하여 자동으로 배포
+		: 절차 
+			(1) 스택 생성 
+				1. cloudformation 서비스 클릭 - 메인 화면에서 "스택 생성" 버튼 클릭
+				2. 다음의 내용으로 스택 생성
+					(1) 템플릿 지정 >> 
+						1. 사전조건-템플릿 준비 >> 그대로(기본 템플릿 선택)
+						2. Amazon S3 URL 에는 교재에서 제공한 url(https://cloudneta-aws-book.s3.ap-northeast-2.amazonaws.com/chapter5/storagelab.yaml
+) 입력
+							: 해당 URL 은 템플릿(YAML파일)을 다운받을 수 있는 URL임
+							: 다운로드 받게되는 YAML 파일의 구성
+								: 내부적으로 자주 사용되는 함수 >>
+									1. !Ref >> 
+									    : "!Ref 리소스명||파라미터명" 의 꼴로 활용됨
+										(1) 해당 리소스의 고유 식별자(ID)를 가져옴
+										(2) Parameters 섹션에 정의된 파라미터 값을 참조하는 데 사용
+									2. !GetAtt >> 해당 리소스의 properties 에 정의된 속성값을 참조하는데 사용
+										:  "!GetAtt 리소스논리이름.특정속성명" 의 꼴로 활용됨
+
+								: 참고 >>
+									1. IGW 는 생성한다고 걍 원하는 VPC 에 attach 되는게 아니라, "IGW 생성"에 대한 것 뿐 아니라 "attach 대한 것" 또한 따로 정의해줘야된다. 
+
+									2. 라우팅 테이블 생성할 때 그 라우팅 테이블의 규칙까지 한번에 정의하는 꼴이 아니라, "라우팅 테이블 생성"에 대한 정의와 "특정라우팅테이블의라우팅규칙"을 따로 정의하는 꼴이다
+
+									3. 라우팅테이블과 특정 서브넷을 연결하는 것도 별도로 정의해야된다
+									
+
+								: Parameters 섹션>> 해당 YAML 파일 내부에서 쓰이는 변수를 정의하는 부분으로, 사용자에게 입력을 받은 값으로 결정된다.
+									: 이 섹션에는 다음 항목을 명시
+										1. KeyName >> EC2 KeyPair의 이름
+										2. LatestAmiId >> AMI의 ID
+ 
+								: Resources 섹션>> 생성할 자원을 정의하는 부분
+									: (Resources 섹션) 바로아래에는생성할리소스의논리적이름을명시
+										: 해당 이름은 템플릿 내에서 고유하고, 참조 가능
+										: 이 이름으로 실제 리소스가 만들어진다는게 아니라 템플릿 내에서 해당 이름으로 참조가능하게 된다는 개념인거임 (생성되는 리소스의 이름정하는건 properties 항목의 Tag 속성에서 정의 필요)
+										: 이 항목 아래에는 다음 항목을 명시
+											1. Type >> 리소스의 종류(VPC, subnet, EC2인스턴스, IAMRole 등 .. )를 정의
+											2. Properties >> 리소스의 세부적인 속성 정의 
+											    : 정의 가능한 속성
+												(1) CidrBlock >> IP주소 범위 설정
+
+												(2) AvailabilityZone >> 가용영역설정
+
+												(3) Tags >> 태그 설정
+													: key 와 value 의 형태로 구성됨
+													: tip >> "- key : Name Value: 어떤이름" 으로 생성되는 리소스의 이름이 정해지게된다
+
+
+
+								: Outputs 섹션>> 출력으로 표시할 내용 정의
+									: (Outputs 섹션) 바로아래에는 정의할 출력의 논리적 이름 명시
+										: 해당 이름은 마찬가지로 템플릿 내에서 고유해야하고, 참조 가능
+										: 이 항목 아래에는 다음 항목을 명시 가능
+											1. Value >> 출력할 값 정의
+											2. Description >> 출력에 대한 설명 정의
+
+
+					
+					(2) 스택 세부 정보 지정 >>
+						1. 스택 이름 >> storagelab
+						2. 파리미터 의 keyname >> 이전에 생성한 키페어파일인 ongja_key 선택
+
+					(3) 스택 옵션 구성 >> 그대로 냅두고 다음 누름
+					(4) 검토 밑 작성 >> 맨 마지막에 있는 "사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 승인합니다" 에 체크하고 "전송" 누름
+						: 5분 정도 후 인프라 배포 완료 됨
+						: 최종적으로는 (YAML파일에 정의됬던대로) 다음과 같이 인프라가 구성됨
+							1. VPC (CH5-VPC)
+								: IP 범위 >> 10.40.0.0/16 
+
+							2. IGW (CH5-IGW)
+
+							3. public routing table (CH5-Public-RT) >> CH-IGW와 연결됨
+								: VPC 생성시 기본 생성되는 라우팅 테이블이 아니라 별도로 정의/생성한 라우팅 테이블이다
+
+								: YAML 파일 
+									라우팅테이블정의 >> Type: AWS::EC2::RouteTable
+										VpcId >> 해당 라우팅테이블이 속할 VPC 를 정의하게 된다 
+											: 라우팅테이블 생성하면 (AWS에 의해) 해당 라우팅이속한 VPC에 대한 라우팅규칙(destion이 VPC 이고 target이 local인 라우팅규칙)은 자동 추가된다 >> 이는 VPC 내부의 모든 리소스가 서로 통신이 가능하게 보장한다
+
+									라우팅테이블의 규칙정의 >> Type: AWS::EC2::Route
+										RouteTableId >> 해당 라우팅테이블규칙이 속할 라우팅테이블을 정함
+										DestinationCidrBlock >> Destination IP 범위 설정
+										GatewayId >> Target IP 범위 설정
+
+
+									라우팅테이블의 서브넷과의 attach 정의 >> Type: AWS::EC2::SubnetRouteTableAssociation
+										: 라우팅 테이블은 생성한다고 자동적으로 해당 VPC 내의 모든 서브넷과 attach 되는게 
+
+
+							4. subnet
+								(1) CH5-Public-Subnet1
+									: IP 범위 >> 10.40.1.0/24
+									: attach 된 라우팅 테이블 >> CH5-Public-RT
+
+								(2) CH5-Public-Subent2
+									: IP 범위 >> 10.40.2.0/24
+									: attach 된 라우팅 테이블 >> CH5-Public-RT
+
+							5. IAM role (STGLabInstaceRole) >> S3 FULL 정책 연동
+
+							6. InstaceProfile (STGLabRoleForInstaces) >> STGLabInstanceRole 연동
+
+							7. EC2 instance
+								(1) EC2-STG1
+									: subnet >> CH5-Public-Subnet1
+									: private IP >> 10.40.1.10
+
+								(2) EC2-STG2
+									: subnet >> CH5-Public-Subnet2
+									: private IP >> 10.40.2.10
+
+							8. Security Group ( CH5-SG )
+								: 정의된 인바운드 규칙 
+									(1) 전 세계에서 오는 HTTP(포트 80) 트래픽 허용
+									(2) VPC 내부에서 오는 NFS(포트 2049) 트래픽 허용
+									(3) 전 세계에서 오는 SSH(포트 22) 트래픽 허용
+									(4) 전 세계에서 오는 모든 ICMP 트래픽 (Ping 포함) 허용
+								    : YAML 파일
+									SecurityGroupIngress >> 인바운드 규칙 정의 
+										: 각 규칙은 객체의 형태로 정의된다
+										IpProtocol >> 허용할 프로토콜
+											: tcp, icmp 같은 거 적을 수 있다
+
+										FromPort , ToPort >> 허용할포트의 범위 설정
+											FromPort >> 허용할 시작 포트 번호 
+											ToPort >>허용할 마지막 포트 번호
+											tip 
+												1. FromPort : 'n' 인데 ToPort: 'n' 이면 딱 그 n번 포트에 대해서면 설정이 정의되는 것
+												2. 포트 개념이 없는 경우 '-1' 값을 준다
+										CidrIp >> 접근허용할 IP 주소의 범위 설정
+
+
+
+
+
 	2. EBS 스토리지를 추가로 생성하고 사용
 	3. EBS 스토리지의 볼륨 크기를 변경하고, 스냅샷 기능으로 백업
 	4. EFS 스토리지를 생성하고 사용
 	5. Public S3 스토리지로 외부 접근 확인
 	6. Private S3 스토리지의 제한된 접근 및 데이터 백업
 	7. 생성된 자원을 모두 삭제
-
